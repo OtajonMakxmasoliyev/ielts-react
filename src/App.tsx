@@ -1,11 +1,10 @@
-import React, { createContext, useContext, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import { useDropzone } from "react-dropzone";
-import remarkGfm from "remark-gfm";
+import React, { useEffect } from "react";
+import Create from "./components/Questions/create";
+import Read from "./components/Questions/read";
+import { useQuestionStore } from "./store/questionStore";
 
-const markdown = [`
-## Section 1
+
+const markdown = `## Section 1
 You will hear a student booking a hotel room.
 
 # IELTS Listening Practice Test
@@ -68,157 +67,130 @@ A professor is giving a lecture about dolphins.
 - They usually live in <input type="text" name="q32" />  
 - Their average lifespan is <input type="number" name="q33" /> years  
 
+---`
+
+function fixMarkdown(markdown: string) {
+  return markdown
+    // input
+    .replace(/\[input([^\]]+)\]/g, '<input$1 />')
+
+    // radio
+    .replace(/<radio([^\]]+)\]/g, '<radio$1 />')
+
+    // checkbox
+    .replace(/\[checkbox([^\]]+)\]/g, '<checkbox$1 />')
+
+    // checkboxgroup open
+    .replace(/\[checkboxgroup([^\]]*)\]/g, '<checkboxgroup$1>')
+
+    // checkboxgroup close
+    .replace(/\[\/?checkboxgroup\]/g, '</checkboxgroup>')
+
+    // <br] => <br/>
+    .replace(/<br\]/g, '<br/>');
+}
+
+
+const markdown2 = `# PART 2 Questions 11 – 20
+
+## Canadian Festival Theatre
+
+### Questions 11 — 14
+Choose the correct letter, A, B or C.  
+
+11. What special offer is there for regular theatre-goers in this season?  
+- A. They can see a second play at a reduced price.  
+- B. They can buy two tickets and get two free.  
+- C. They can get a discount on Mondays.  
+
+12. What information is given about the study guides?  
+- A. They are handed out at the theatre.  
+- B. They provide information on the actors.  
+- C. They give ideas for discussion.  
+
+13. What information is given about the 'Bring a friend' special?  
+- A. It is only for those over 65.  
+- B. It applies to a number of productions.  
+- C. It includes a 5% reduction on gifts.  
+
+14. What does Michael say about the actor Christopher Plunket?  
+- A. He may retire from acting soon.  
+- B. He writes his own plays.  
+- C. He prefers acting in films to performing live.  
+
 ---
 
-`,]
-interface CheckboxGroupContextType {
-  selected: string[];
-  handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}
+### Main theme (A–H)
+- A: living in a different century  
+- B: managing to achieve success  
+- C: ageing slowly  
+- D: growing up  
+- E: experiencing disappointment  
+- F: living in a magical place  
+- G: overcoming poverty  
+- H: handling conflict  
 
-const CheckboxGroupContext = createContext<CheckboxGroupContextType | null>(
-  null
-);
+### Questions 15 — 20
+What is the main theme of each of the following musicals?  
+Choose SIX answers from the box and write the correct letter, A-H.  
 
-function useCheckboxLimit(name: string, min: number, max: number) {
-  const [selected, setSelected] = useState<string[]>([]);
+15. The Climb …………..  
+16. The Voyagers …………..  
+17. Joey Brown …………..  
+18. Main Street …………..  
+19. Millie and Mike …………..  
+20. Windswept …………..`
+function convertToMarkdown(text: string) {
+  let result = text;
+  const alphabet = Array.from({ length: 26 }, (_, i) =>
+    String.fromCharCode(65 + i)
+  );
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let newSelected = [...selected];
+  result = result.replace(
+    /(\d+)\.\s([^\n]+?)\n((?:- [A-Z]\..+\n?)+)/gs,
+    (match, qNum, question, optionsBlock) => {
+      // variantlarni olish
+      const options = optionsBlock.trim().split("\n");
 
-    if (e.target.checked) {
-      if (newSelected.length < max) {
-        newSelected.push(e.target.value);
-      } else {
-        e.target.checked = false; // limitdan oshmasin
-      }
-    } else {
-      newSelected = newSelected.filter((v) => v !== e.target.value);
+      // har bir variantni map qilish
+      const radios = options.map((line: any, idx: number) => {
+        const text = line.replace(/- [A-Z]\.\s*/, "").trim();
+        const letter = alphabet[idx]; // A, B, C, D ...
+        return `<radio name="q${qNum}" value="${letter}" /> ${letter}) ${text}`;
+      });
+
+      return `${qNum}. ${question.trim()}\n${radios.join("\n")}`;
     }
-
-    setSelected(newSelected);
-  };
-
-  return { selected, handleChange };
-}
-
-// =======================
-// CheckboxGroup Component
-// =======================
-interface CheckboxGroupProps {
-  name: string;
-  min?: number;
-  max?: number;
-  children: React.ReactNode;
-}
-
-const CheckboxGroup: React.FC<CheckboxGroupProps> = ({
-  name,
-  min = 0,
-  max = 2,
-  children,
-}) => {
-  const { selected, handleChange } = useCheckboxLimit(name, min, max);
-
-  return (
-    <CheckboxGroupContext.Provider value={{ selected, handleChange }}>
-      <div>{children}</div>
-    </CheckboxGroupContext.Provider>
+  )
+  // 2) Harfli tanlash (A–H) variantli savollar jadvalga kiritish
+  result = result.replace(
+    /(\d+)\.\s([^\n]+)\.{2,}/g,
+    (match, qNum, title) => {
+      return `| ${qNum} | ${title.trim()} | <input type="text" name="q${qNum}" /> |`;
+    }
   );
-};
 
-// =======================
-// Checkbox Component
-// =======================
-interface CheckboxProps {
-  name: string;
-  value: string;
-  children: React.ReactNode;
+  return result;
 }
 
-const Checkbox: React.FC<CheckboxProps> = ({ name, value, children }) => {
-  const ctx = useContext(CheckboxGroupContext);
 
-  if (!ctx) {
-    throw new Error("Checkbox must be used inside a CheckboxGroup");
-  }
 
-  const { handleChange } = ctx;
+const App: React.FC = () => {
+  const { questions, fetchQuestions, loading, error } = useQuestionStore();
 
+  useEffect(() => {
+    // fetchQuestions();
+    console.log(fixMarkdown(markdown));
+
+  }, []);
+
+  // if (loading) return <p>Loading...</p>;
+  // if (error) return <p className="text-red-500">{error}</p>;
   return (
-    <label className="block cursor-pointer">
-      <input
-        type="checkbox"
-        name={name}
-        value={value}
-        onChange={handleChange}
-        className="mr-2"
-      />
-      {children}
-    </label>
-  );
-}
-// Radio Props
-interface RadioProps {
-  name: string;
-  value: string;
-  children?: React.ReactNode;
-}
-
-const Radio: React.FC<RadioProps> = ({ name, value, children }) => {
-  return (
-    <label className="block cursor-pointer">
-      <input type="radio" name={name} value={value} className="mr-2" />
-      {children}
-    </label>
-  );
-};
-
-// Dropzone Props
-interface DropzoneProps {
-  name: string;
-}
-
-const Dropzone: React.FC<DropzoneProps> = ({ name }) => {
-  const onDrop = (files: File[]) => console.log("Uploaded:", files);
-  const { getRootProps, getInputProps } = useDropzone({ onDrop });
-
-  return (
-    <div {...getRootProps()} className="p-4 border-2 border-dashed rounded">
-      <input {...getInputProps()} name={name} />
-      Fayllarni shu yerga tashlang yoki tanlang
+    <div className="w-full min-h-screen  bg-red-500">
+      <Read markdown={convertToMarkdown(markdown2)} />
     </div>
   );
 };
 
-export default function App() {
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    console.log(Object.fromEntries(data.entries()));
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="p-6 space-y-4">
-      <ReactMarkdown
-        rehypePlugins={[remarkGfm, rehypeRaw]}
-        components={{
-          radio: ({ node, ...props }) => <Radio name={""} value={""} {...props} />,
-          checkbox: ({ node, ...props }) => <Checkbox name={""} value={""} children={undefined} {...props} />,
-          checkboxgroup: ({ node, ...props }) => <CheckboxGroup name={""} children={undefined} {...props} />,
-          input: ({ node, ...props }) => <input {...props} className="border p-1" />
-
-        }}
-      >
-        {markdown[0]}
-      </ReactMarkdown>
-
-      <button
-        type="submit"
-        className="px-4 py-2 bg-blue-600 text-white rounded"
-      >
-        Yuborish
-      </button>
-    </form>
-  );
-}
+export default App;
