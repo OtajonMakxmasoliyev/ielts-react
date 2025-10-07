@@ -125,35 +125,24 @@ const Dropzone: React.FC<DropzoneProps> = ({ name }) => {
     );
 };
 
-export default function Read({ markdown }: { markdown: string }) {
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const data = new FormData(e.currentTarget);
-        console.log(Object.fromEntries(data.entries()));
-    };
+export default function Read({ markdown, index }: { markdown: string, index: number }) {
+
 
     return (
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            <ReactMarkdown
-                rehypePlugins={[remarkGfm, rehypeRaw]}
-                components={{
-                    radio: ({ node, ...props }) => <Radio name={""} value={""} {...props} />,
-                    checkbox: ({ node, ...props }) => <Checkbox name={""} value={""} children={undefined} {...props} />,
-                    checkboxgroup: ({ node, ...props }) => <CheckboxGroup name={""} children={undefined} {...props} />,
-                    input: ({ node, ...props }) => <input {...props} className="border p-1" />
+        <ReactMarkdown
+            rehypePlugins={[remarkGfm, rehypeRaw]}
+            components={{
+                radio: ({ node, ...props }) => <Radio name={""} value={""} {...props} />,
+                checkbox: ({ node, ...props }) => <Checkbox name={""} value={""} children={undefined} {...props} />,
+                checkboxgroup: ({ node, ...props }) => <CheckboxGroup name={""} children={undefined} {...props} />,
+                input: ({ node, ...props }) => <input {...props} className="border p-1" />
 
-                }}
-                
-            >
-                {markdown}
-            </ReactMarkdown>
+            }}
 
-            <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded"
-            >
-                Yuborish
-            </button>
-        </form>
+        >
+            {markdown}
+        </ReactMarkdown>
+
+
     );
 }
